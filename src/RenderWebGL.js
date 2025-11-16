@@ -126,7 +126,8 @@ class RenderWebGL extends EventEmitter {
                 alpha: true,
                 stencil: true,
                 antialias: false,
-                powerPreference: RenderWebGL.powerPreference
+                powerPreference: RenderWebGL.powerPreference,
+                xrCompatible: true
             };
             // Don't use twgl's getContext here because it will spend a few milliseconds enabling extensions
             // on a context that won't get used.
@@ -151,6 +152,7 @@ class RenderWebGL extends EventEmitter {
             alpha: true,
             stencil: true,
             antialias: false,
+            xrCompatible: true,
             powerPreference: RenderWebGL.powerPreference
         };
         return twgl.getContext(canvas, contextAttribs);
@@ -247,7 +249,16 @@ class RenderWebGL extends EventEmitter {
         // tw: track id of pen skin
         this._penSkinId = null;
 
-        this.useHighQualityRender = false;
+        this.useHighQualityRender = true;
+
+        // pm: extra rendering settings
+        this.customRenderConfig = {
+            textCostumeResolution: {
+                capped: false,
+                fixed: false,
+                value: 1
+            }
+        };
 
         this.offscreenTouching = false;
 
@@ -279,6 +290,36 @@ class RenderWebGL extends EventEmitter {
         /** @todo disable when no partial transparency? */
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+        /**
+         * pm: Whether or not the renderer should be drawing to an XR layer.
+         * Used for the Virtual Reality extension.
+         */
+        this.xrEnabled = false;
+
+        /**
+         * pm: The layer that should be drawn to.
+         * Used for the Virtual Reality extension.
+         */
+        this.xrLayer = null;
+
+        /**
+         * pm: Whether or not the renderer should be drawing the image split for VR screens.
+         * Used for the Virtual Reality extension.
+         */
+        this.xrSplitting = false;
+
+        /**
+         * pm: An offset where the XR splitting will shift closer to the center.
+         * Used for the Virtual Reality extension.
+         */
+        this.xrSplitOffset = 0;
+
+        /**
+         * pm: Controls whether or not sprites will render offscreen.
+         * set to true by default as this is still expieremental
+         */
+        this.renderOffscreen = true;
 
         /**
          * Whether projects should be able to access the contents of private skins such as webcams.
@@ -324,6 +365,12 @@ class RenderWebGL extends EventEmitter {
             CanvasMeasurementProvider,
             Rectangle
         };
+    }
+
+    setRenderOffscreen (bool) {
+        this.renderOffscreen = bool;
+        this.dirty = true;
+        this.draw();
     }
 
     // tw: implement high quality pen option
@@ -417,7 +464,7 @@ class RenderWebGL extends EventEmitter {
      * @param {number} red The red component for the background.
      * @param {number} green The green component for the background.
      * @param {number} blue The blue component for the background.
-     * @param {number} alpha The alpha component for the background.
+     * @param {number} alpha The Alpha component for the background. (0-1)
      */
     setBackgroundColor (red, green, blue, alpha = 1) {
         this.dirty = true;
@@ -605,12 +652,14 @@ class RenderWebGL extends EventEmitter {
      * @param {!string} type - either "say" or "think".
      * @param {!string} text - the text for the bubble.
      * @param {!boolean} pointsLeft - which side the bubble is pointing.
+     * @param {object} style - text bubble style.
      * @returns {!int} the ID for the new skin.
      */
-    createTextSkin (type, text, pointsLeft) {
+    createTextSkin (type, text, pointsLeft, style) {
         const skinId = this._nextSkinId++;
         const newSkin = new TextBubbleSkin(skinId, this);
         newSkin.setTextBubble(type, text, pointsLeft);
+        if (style) newSkin.setStyle(style);
         this._allSkins[skinId] = newSkin;
         return skinId;
     }
@@ -671,15 +720,18 @@ class RenderWebGL extends EventEmitter {
      * @param {!string} type - either "say" or "think".
      * @param {!string} text - the text for the bubble.
      * @param {!boolean} pointsLeft - which side the bubble is pointing.
+     * @param {object} style - the text bubble style.
      */
-    updateTextSkin (skinId, type, text, pointsLeft) {
+    updateTextSkin (skinId, type, text, pointsLeft, style) {
         if (this._allSkins[skinId] instanceof TextBubbleSkin) {
             this._allSkins[skinId].setTextBubble(type, text, pointsLeft);
+            if (style) this._allSkins[skinId].setStyle(style);
             return;
         }
 
         const newSkin = new TextBubbleSkin(skinId, this);
         newSkin.setTextBubble(type, text, pointsLeft);
+        if (style) newSkin.setStyle(style);
         this._reskin(skinId, newSkin);
     }
 
@@ -754,9 +806,23 @@ class RenderWebGL extends EventEmitter {
      * names
      */
     setLayerGroupOrdering (groupOrdering) {
+        const oldGroups = {};
+        for (let i = 0; i < this._groupOrdering.length; i++) {
+            const groupID = this._groupOrdering[i];
+            const layerGroup = this._layerGroups[groupID];
+            const startIndex = layerGroup.drawListOffset;
+            const endIndex = this._endIndexForKnownLayerGroup(layerGroup);
+            oldGroups[groupID] = this._drawList.slice(startIndex, endIndex);
+        }
+        this._drawList = [];
         this._groupOrdering = groupOrdering;
         for (let i = 0; i < this._groupOrdering.length; i++) {
-            this._layerGroups[this._groupOrdering[i]] = {
+            const groupID = this._groupOrdering[i];
+            const oldLayerGroup = oldGroups[groupID];
+            if (oldLayerGroup) {
+                this._drawList = this._drawList.concat(oldLayerGroup);
+            }
+            this._layerGroups[groupID] = {
                 groupIndex: i,
                 drawListOffset: 0
             };
@@ -919,32 +985,91 @@ class RenderWebGL extends EventEmitter {
      * Draw all current drawables and present the frame on the canvas.
      */
     draw () {
+        // practically doesnt matter with XR enabled
         if (!this.dirty) {
             return;
         }
+
+        // if xr is enabled but there is no layer to draw to,
+        // then ignore the draw call for this frame
+        if (this.xrEnabled && !this.xrLayer) {
+            return;
+        }
+
         this.dirty = false;
 
         this._doExitDrawRegion();
 
         const gl = this._gl;
 
-        twgl.bindFramebufferInfo(gl, null);
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-        // Context expects pre-multiplied colors.
-        gl.clearColor(
-            this._backgroundColor4f[0],
-            this._backgroundColor4f[1],
-            this._backgroundColor4f[2],
-            this._backgroundColor4f[3]
-        );
+        if (this.xrEnabled) {
+            // TODO: mayb this single line is better idk
+            // twgl.bindFramebufferInfo(gl, xrLayer.framebuffer);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.xrLayer.framebuffer);
+            gl.viewport(0, 0, this.xrLayer.framebufferWidth, this.xrLayer.framebufferHeight);
+            gl.clearColor(0, 0, 0, 0);
+        } else {
+            twgl.bindFramebufferInfo(gl, null);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clearColor(...this._backgroundColor4f);
+        }
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         const snapshotRequested = this._snapshotCallbacks.length > 0;
-        this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, this._projection, {
-            framebufferWidth: gl.canvas.width,
-            framebufferHeight: gl.canvas.height,
-            skipPrivateSkins: snapshotRequested
-        });
+        // eslint-disable-next-line no-negated-condition
+        if (!this.xrSplitting) {
+            // draw normally
+            this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, this._projection, {
+                framebufferWidth: gl.canvas.width,
+                framebufferHeight: gl.canvas.height,
+                skipPrivateSkins: snapshotRequested
+            });
+        } else {
+            // draw split
+            const width = this.xrEnabled ? this.xrLayer.framebufferWidth : gl.canvas.width;
+            const height = this.xrEnabled
+                ? this.xrLayer.framebufferHeight
+                : gl.canvas.height;
+            const stageWidth = this._xRight - this._xLeft;
+
+            // create projections
+            // #1 is used for the left eye
+            // #2 is used for the right eye
+            const projection1 = twgl.m4.ortho(
+                this._xLeft + this.xrSplitOffset,
+                this._xRight + stageWidth + this.xrSplitOffset,
+                this._yBottom,
+                this._yTop,
+                -1,
+                1
+            );
+            const projection2 = twgl.m4.ortho(
+                this._xLeft - stageWidth - this.xrSplitOffset,
+                this._xRight + stageWidth - stageWidth - this.xrSplitOffset,
+                this._yBottom,
+                this._yTop,
+                -1,
+                1
+            );
+
+            gl.enable(gl.SCISSOR_TEST);
+            // draw left eye
+            gl.scissor(0, 0, width / 2, height);
+            this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, projection1, {
+                    framebufferWidth: width,
+                    framebufferHeight: height,
+                    skipPrivateSkins: snapshotRequested
+            });
+            // draw right eye
+            gl.scissor(width / 2, 0, width / 2, height);
+            this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, projection2, {
+                framebufferWidth: width,
+                framebufferHeight: height,
+                skipPrivateSkins: snapshotRequested
+            });
+            gl.disable(gl.SCISSOR_TEST);
+        }
+
         if (snapshotRequested) {
             const snapshot = gl.canvas.toDataURL();
             this._snapshotCallbacks.forEach(cb => cb(snapshot));
@@ -973,7 +1098,7 @@ class RenderWebGL extends EventEmitter {
             const gl = this._gl;
             this._debugCanvas.width = gl.canvas.width;
             this._debugCanvas.height = gl.canvas.height;
-            const context = this._debugCanvas.getContext('2d');
+            const context = this._debugCanvas.getContext('2d', { willReadFrequently: true });
             context.drawImage(gl.canvas, 0, 0);
             context.strokeStyle = '#FF0000';
             const pr = window.devicePixelRatio;
@@ -1006,7 +1131,7 @@ class RenderWebGL extends EventEmitter {
             const gl = this._gl;
             this._debugCanvas.width = gl.canvas.width;
             this._debugCanvas.height = gl.canvas.height;
-            const context = this._debugCanvas.getContext('2d');
+            const context = this._debugCanvas.getContext('2d', { willReadFrequently: true });
             context.drawImage(gl.canvas, 0, 0);
             context.strokeStyle = '#FF0000';
             const pr = window.devicePixelRatio;
@@ -1078,7 +1203,7 @@ class RenderWebGL extends EventEmitter {
 
         const maxPixelsForCPU = this._getMaxPixelsForCPU();
 
-        const debugCanvasContext = this._debugCanvas && this._debugCanvas.getContext('2d');
+        const debugCanvasContext = this._debugCanvas && this._debugCanvas.getContext('2d', {willReadFrequently: true});
         if (debugCanvasContext) {
             this._debugCanvas.width = bounds.width;
             this._debugCanvas.height = bounds.height;
@@ -1228,7 +1353,7 @@ class RenderWebGL extends EventEmitter {
         if (this._debugCanvas) {
             this._debugCanvas.width = bounds.width;
             this._debugCanvas.height = bounds.height;
-            const context = this._debugCanvas.getContext('2d');
+            const context = this._debugCanvas.getContext('2d', { willReadFrequently: true });
             const imageData = context.getImageData(0, 0, bounds.width, bounds.height - stop);
             imageData.data.set(pixels);
             context.putImageData(imageData, 0, 0);
@@ -1289,6 +1414,53 @@ class RenderWebGL extends EventEmitter {
         }
 
         return false;
+    }
+
+    /**
+     * Get the point where a particular Drawable is touching any in a set of Drawables.
+     * @param {int} drawableID The ID of the Drawable to check.
+     * @param {?Array<int>} candidateIDs The Drawable IDs to check, otherwise all visible drawables in the renderer
+     * @returns {?Array<number>} [x, y] if found, null if not
+     */
+    getTouchingDrawablesPoint (drawableID, candidateIDs = this._drawList) {
+        // if we are invisible we don't touch anything.
+        if (!this._allDrawables[drawableID]._visible) {
+            return false;
+        }
+
+        const candidates = this._candidatesTouching(drawableID,
+            // even if passed an invisible drawable, we will NEVER touch it!
+            candidateIDs.filter(id => this._allDrawables[id]._visible));
+        if (candidates.length === 0) {
+            return null;
+        }
+
+        // Get the union of all the candidates intersections.
+        const bounds = this._candidatesBounds(candidates);
+
+        const drawable = this._allDrawables[drawableID];
+        const point = __isTouchingDrawablesPoint;
+
+        drawable.updateCPURenderAttributes();
+
+        // This is an EXTREMELY brute force collision detector, but it is
+        // still faster than asking the GPU to give us the pixels.
+        for (let x = bounds.left; x <= bounds.right; x++) {
+            // Scratch Space - +y is top
+            point[0] = x;
+            for (let y = bounds.bottom; y <= bounds.top; y++) {
+                point[1] = y;
+                if (drawable.isTouching(point)) {
+                    for (let index = 0; index < candidates.length; index++) {
+                        if (candidates[index].drawable.isTouching(point)) {
+                            return point;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1395,6 +1567,7 @@ class RenderWebGL extends EventEmitter {
                 const drawableBounds = drawable.getFastBounds();
                 const inRange = bounds.intersects(drawableBounds);
                 if (!inRange) return false;
+                if (drawable.skin instanceof PenSkin) return false;
 
                 drawable.updateCPURenderAttributes();
                 return true;
@@ -1519,7 +1692,8 @@ class RenderWebGL extends EventEmitter {
             this._drawThese([drawableID], ShaderManager.DRAW_MODE.straightAlpha, projection,
                 {
                     // Don't apply the ghost effect. TODO: is this an intentional design decision?
-                    effectMask: ~ShaderManager.EFFECT_INFO.ghost.mask,
+                    // gsa: i wonder how deathly it would be to remove this
+                    // effectMask: ~ShaderManager.EFFECT_INFO.ghost.mask,
                     // We're doing this in screen-space, so the framebuffer dimensions should be those of the canvas in
                     // screen-space. This is used to ensure SVG skins are rendered at the proper resolution.
                     framebufferWidth: canvas.width,
@@ -1608,7 +1782,7 @@ class RenderWebGL extends EventEmitter {
         if (this._debugCanvas) {
             this._debugCanvas.width = bounds.width;
             this._debugCanvas.height = bounds.height;
-            const ctx = this._debugCanvas.getContext('2d');
+            const ctx = this._debugCanvas.getContext('2d', { willReadFrequently: true });
             const imageData = ctx.createImageData(bounds.width, bounds.height);
             imageData.data.set(data);
             ctx.putImageData(imageData, 0, 0);
@@ -1653,6 +1827,18 @@ class RenderWebGL extends EventEmitter {
             // No space to query.
             return null;
         }
+        return bounds;
+    }
+
+    _unsnappedTouchingBounds (drawableID) {
+        // _touchingBounds with the snapToint call removed.
+        const drawable = this._allDrawables[drawableID];
+        if (!drawable.skin || !drawable.skin.getTexture([100, 100])) return null;
+        const bounds = drawable.getFastBounds();
+        if (!this.offscreenTouching) {
+            bounds.clamp(this._xLeft, this._xRight, this._yBottom, this._yTop);
+        }
+        if (bounds.width === 0 || bounds.height === 0) return null;
         return bounds;
     }
 
@@ -1773,13 +1959,15 @@ class RenderWebGL extends EventEmitter {
      * @param {number} drawableID The drawable's id.
      * @param {number} direction A new direction.
      * @param {Array.<number>} scale A new scale.
+     * @param {Array.<number>} translate A new translation.
      */
-    updateDrawableDirectionScale (drawableID, direction, scale) {
+    updateDrawableDirectionScale (drawableID, direction, scale, translate) {
         const drawable = this._allDrawables[drawableID];
         // TODO: https://github.com/LLK/scratch-vm/issues/2288
         if (!drawable) return;
         drawable.updateDirection(direction);
         drawable.updateScale(scale);
+        if (translate) drawable.updateTransform(translate);
     }
 
     /**
@@ -1866,6 +2054,20 @@ class RenderWebGL extends EventEmitter {
     }
 
     /**
+     * translate the pen points
+     * @param {int} penSkinID - the unique ID of a Pen Skin.
+     * @param {number} x - the X offset of the translation.
+     * @param {number} y - the Y offset of the translation.
+     * @param {number} scale - the scale of the translation.
+     * @param {number} dir - the direction of the translation.
+     */
+    penTranslate (penSkinID, x, y, scale, dir) {
+        this.dirty = true;
+        const skin = /** @type {PenSkin} */ this._allSkins[penSkinID];
+        skin.updatePenPointOffset(x, y, scale, dir);
+    }
+
+    /**
      * Clear a pen layer.
      * @param {int} penSkinID - the unique ID of a Pen Skin.
      */
@@ -1909,6 +2111,7 @@ class RenderWebGL extends EventEmitter {
      * @param {int} stampID - the unique ID of the Drawable to use as the stamp.
      */
     penStamp (penSkinID, stampID) {
+        this.dirty = true;
         const stampDrawable = this._allDrawables[stampID];
         if (
             !stampDrawable ||
@@ -2092,6 +2295,9 @@ class RenderWebGL extends EventEmitter {
         const gl = this._gl;
         let currentShader = null;
 
+        const halfNativeSizeX = this._nativeSize[0] / 2;
+        const halfNativeSizeY = this._nativeSize[1] / 2;
+
         const framebufferSpaceScaleDiffers = (
             'framebufferWidth' in opts && 'framebufferHeight' in opts &&
             opts.framebufferWidth !== this._nativeSize[0] && opts.framebufferHeight !== this._nativeSize[1]
@@ -2105,7 +2311,26 @@ class RenderWebGL extends EventEmitter {
             if (opts.filter && !opts.filter(drawableID)) continue;
 
             const drawable = this._allDrawables[drawableID];
-            /** @todo check if drawable is inside the viewport before anything else */
+            if (!drawable) continue;
+
+            const uniforms = {};
+            if (!this.renderOffscreen && drawable.uniformApplied) {
+                if (drawMode === ShaderManager.DRAW_MODE.default && drawable.skin) {
+                    // If rotationCenterDirty or skinScaleDirty is dirty, then set _calculateTransform first
+                    // because _rotationAdjusted and _skinScale    needs to call _calculateTransform before using
+                    let uniformHasBeenSet = false;
+                    if (drawable.transformBeforeCheckViewport()) {
+                        Object.assign(uniforms, drawable.getUniforms());
+                        uniformHasBeenSet = true;
+                    }
+
+                    if (!drawable.inViewport(halfNativeSizeX, halfNativeSizeY)) continue;
+                    // If unconfirm was not set before
+                    if (!uniformHasBeenSet) Object.assign(uniforms, drawable.getUniforms());
+                } else {
+                    Object.assign(uniforms, drawable.getUniforms());
+                }
+            }
 
             // Hidden drawables (e.g., by a "hide" block) are not drawn unless
             // the ignoreVisibility flag is used (e.g. for stamping or touchingColor).
@@ -2127,8 +2352,6 @@ class RenderWebGL extends EventEmitter {
 
             // Skip drawables with a skin that does not have a texture.
             if (!drawable.skin.getTexture(drawableScale)) continue;
-
-            const uniforms = {};
 
             let effectBits = drawable.enabledEffects;
             effectBits &= Object.prototype.hasOwnProperty.call(opts, 'effectMask') ? opts.effectMask : effectBits;
@@ -2358,6 +2581,19 @@ class RenderWebGL extends EventEmitter {
     requestSnapshot (callback) {
         this.dirty = true;
         this._snapshotCallbacks.push(callback);
+    }
+
+    getBubbleDefaults () {
+        const bubble = new TextBubbleSkin();
+        const props = bubble.getAllProps();
+        bubble.dispose();
+        return props;
+    }
+
+    getPenDrawableId () {
+        return this._allDrawables.findIndex(
+            drawable => drawable._skin._id === this._penSkinId
+        );
     }
 
     /**
