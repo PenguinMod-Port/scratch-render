@@ -97,6 +97,7 @@ class Drawable {
 
         this._position = twgl.v3.create(0, 0);
         this._scale = twgl.v3.create(100, 100);
+        this._transform = [];
         this._direction = 90;
         this._transformDirty = true;
         this._rotationMatrix = twgl.m4.identity();
@@ -191,6 +192,14 @@ class Drawable {
     }
 
     /**
+     * @returns {Array<number>} transorm
+     * @todo add proper docs
+     */
+    get transform () {
+        return this._transform;
+    }
+
+    /**
      * @returns {object.<string, *>} the shader uniforms to be used when rendering this Drawable.
      */
     getUniforms () {
@@ -256,6 +265,18 @@ class Drawable {
     }
 
     /**
+     * Update the scale if it is different. Marks the transform as dirty.
+     * @param {Array.<number>} transform A new scale.
+     */
+    updateTransform (transform) {
+        this._transform = transform;
+        this._renderer.dirty = true;
+        this._rotationCenterDirty = true;
+        this._skinScaleDirty = true;
+        this.setTransformDirty();
+    }
+
+    /**
      * Update visibility if it is different. Marks the convex hull as dirty.
      * @param {boolean} visible A new visibility state.
      */
@@ -312,6 +333,52 @@ class Drawable {
                 this.updateEffect(effectName, properties[effectName]);
             }
         }
+    }
+
+    /**
+     * If rotationCenterDirty or skinScaleDirty is dirty
+     * then set _calculateTransform first
+     * because _rotationAdjusted and _skinScale
+     * needs to call _calculateTransform before using
+     * @returns {boolean} transform before checking the viewport
+     */
+    transformBeforeCheckViewport () {
+        return this._rotationCenterDirty || this._skinScaleDirty;
+    }
+
+    /**
+     * check drawable is in viewport
+     * @param {number} halfNativeSizeX viewport width
+     * @param {number} halfNativeSizeY viewport height
+     * @returns {boolean} Is it in viewport
+     */
+    inViewport (halfNativeSizeX, halfNativeSizeY) {
+        // position of this texture
+        const positionX = ~~(this._position[0] + 0.5 - this._rotationAdjusted[0]);
+        const positionY = ~~(this._position[1] + 0.5 - this._rotationAdjusted[1]);
+        // Half the size
+        const halfSizeX = ~~((this._skinScale[0] / 2) + 0.5);
+        const halfSizeY = ~~((this._skinScale[1] / 2) + 0.5);
+
+        // The leftTop and rightBottomX of the sprite must be enlarged,
+        // otherwise there will be problems when rotating
+        const maxHalfSize = Math.max(halfSizeX, halfSizeY);
+
+        const leftTopX = positionX - halfSizeX - maxHalfSize;
+        // Y-axis is reversed
+        const leftTopY = positionY + halfSizeY + maxHalfSize;
+
+        const rightBottomX = positionX + halfSizeX + maxHalfSize;
+        // Y-axis is reversed
+        const rightBottomY = positionY - halfSizeY - maxHalfSize;
+
+        if (rightBottomX < -halfNativeSizeX || rightBottomY > halfNativeSizeY) {
+            return false;
+        }
+        if (leftTopX > halfNativeSizeX || leftTopY < -halfNativeSizeY) {
+            return false;
+        }
+        return true;
     }
 
     /**
