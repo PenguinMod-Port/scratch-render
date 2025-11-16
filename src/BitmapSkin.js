@@ -64,10 +64,10 @@ class BitmapSkin extends Skin {
         // TW: We want to use <canvas> as-is because reading ImageData wastes memory.
         // However, vanilla LLK/scratch-vm will reuse any canvas that we get here for other costumes,
         // which will cause bugs when Silhouette lazily reads the canvas data.
-        // TurboWarp/scratch-vm does not reuse canvases and will set canvas.reusable = false.
+        // Turbo Warp/scratch-vm does not reuse canvases and will set canvas.reusable = false.
         let textureData = bitmapData;
         if (bitmapData instanceof HTMLCanvasElement && bitmapData.reusable !== false) {
-            const context = bitmapData.getContext('2d');
+            const context = bitmapData.getContext("2d", { willReadFrequently: true });
             textureData = context.getImageData(0, 0, bitmapData.width, bitmapData.height);
         }
 
