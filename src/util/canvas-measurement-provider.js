@@ -25,16 +25,22 @@ class CanvasMeasurementProvider {
         
     }
 
+    setFontAndSize (font, size) {
+        this._ctx.font = `${size}px ${font}, sans-serif`;
+        this._cache = {};
+    }
+
     /**
      * Measure a whole string as one unit.
      * @param {string} text - the text to measure.
      * @returns {number} - the length of the string.
      */
     measureText (text) {
-        if (!this._cache[text]) {
-            this._cache[text] = this._ctx.measureText(text).width;
+        const cacheName = this._ctx.font + text;
+        if (!this._cache[cacheName]) {
+            this._cache[cacheName] = this._ctx.measureText(text).actualBoundingBoxRight;
         }
-        return this._cache[text];
+        return this._cache[cacheName];
     }
 
     /**

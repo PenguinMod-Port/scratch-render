@@ -108,10 +108,11 @@ class Skin {
     /**
      * @abstract
      * @param {Array<number>} scale - The scaling factors to be used.
+     * @param {Array<number>} transform - The transform for this image.
      * @return {WebGLTexture} The GL texture representation of this skin when drawing at the given size.
      */
     // eslint-disable-next-line no-unused-vars
-    getTexture (scale) {
+    getTexture (scale, transform) {
         return this._emptyImageTexture;
     }
 
