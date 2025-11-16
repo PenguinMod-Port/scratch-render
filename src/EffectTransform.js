@@ -6,8 +6,9 @@
 
 const twgl = require('twgl.js');
 
-const {rgbToHsv, hsvToRgb} = require('./util/color-conversions');
+const {rgbToHsv, hsvToRgb, decimalToRgb} = require('./util/color-conversions');
 const ShaderManager = require('./ShaderManager');
+
 
 /**
  * A texture coordinate is between 0 and 1. 0.5 is the center position.
@@ -22,10 +23,10 @@ const CENTER_X = 0.5;
 const CENTER_Y = 0.5;
 
 /**
- * Reused memory location for storing an HSV color value.
+ * Reused memory location for storing a 3 channel color value.
  * @type {Array<number>}
  */
-const __hsv = [0, 0, 0];
+const __col3 = [0, 0, 0];
 
 class EffectTransform {
 
@@ -48,9 +49,11 @@ class EffectTransform {
         const uniforms = drawable.getUniforms();
 
         const enableColor = (effects & ShaderManager.EFFECT_INFO.color.mask) !== 0;
+        const enableSaturation = (effects & ShaderManager.EFFECT_INFO.saturation.mask) !== 0;
         const enableBrightness = (effects & ShaderManager.EFFECT_INFO.brightness.mask) !== 0;
+        const enableTintColor = (effects & ShaderManager.EFFECT_INFO.tintColor.mask) !== 0;
 
-        if (enableColor || enableBrightness) {
+        if (enableColor || enableSaturation || enableBrightness || enableTintColor) {
             // gl_FragColor.rgb /= gl_FragColor.a + epsilon;
             // Here, we're dividing by the (previously pre-multiplied) alpha to ensure HSV is properly calculated
             // for partially transparent pixels.
@@ -64,28 +67,43 @@ class EffectTransform {
 
             if (enableColor) {
                 // vec3 hsv = convertRGB2HSV(gl_FragColor.xyz);
-                const hsv = rgbToHsv(inOutColor, __hsv);
+                const hsv = rgbToHsv(inOutColor, __col3);
 
                 // this code forces grayscale values to be slightly saturated
                 // so that some slight change of hue will be visible
-                // const float minLightness = 0.11 / 2.0;
-                const minV = 0.11 / 2.0;
-                // const float minSaturation = 0.09;
-                const minS = 0.09;
-                // if (hsv.z < minLightness) hsv = vec3(0.0, 1.0, minLightness);
-                if (hsv[2] < minV) {
-                    hsv[0] = 0;
-                    hsv[1] = 1;
-                    hsv[2] = minV;
-                // else if (hsv.y < minSaturation) hsv = vec3(0.0, minSaturation, hsv.z);
-                } else if (hsv[1] < minS) {
-                    hsv[0] = 0;
-                    hsv[1] = minS;
-                }
+		
+		        // pm: this usually ends up looking ugly in menus and such, so dont do this actually
+		        // 	   this might be reverted to do this again though if it is genuinely better
+
+                // // const float minLightness = 0.11 / 2.0;
+                // const minV = 0.11 / 2.0;
+                // // const float minSaturation = 0.09;
+                // const minS = 0.09;
+                // // if (hsv.z < minLightness) hsv = vec3(0.0, 1.0, minLightness);
+                // if (hsv[2] < minV) {
+                //     hsv[0] = 0;
+                //     hsv[1] = 1;
+                //     hsv[2] = minV;
+                // // else if (hsv.y < minSaturation) hsv = vec3(0.0, minSaturation, hsv.z);
+                // } else if (hsv[1] < minS) {
+                //     hsv[0] = 0;
+                //     hsv[1] = minS;
+                // }
 
                 // hsv.x = mod(hsv.x + u_color, 1.0);
                 // if (hsv.x < 0.0) hsv.x += 1.0;
                 hsv[0] = (uniforms.u_color + hsv[0] + 1);
+
+                // gl_FragColor.rgb = convertHSV2RGB(hsl);
+                hsvToRgb(hsv, inOutColor);
+            }
+
+            if (enableSaturation) {
+                // vec3 hsv = convertRGB2HSV(gl_FragColor.xyz);
+                const hsv = rgbToHsv(inOutColor, __col3);
+
+                // hsv.y *= u_saturation;
+                hsv[1] = uniforms.u_saturation * hsv[1];
 
                 // gl_FragColor.rgb = convertHSV2RGB(hsl);
                 hsvToRgb(hsv, inOutColor);
@@ -98,6 +116,16 @@ class EffectTransform {
                 inOutColor[0] += brightness;
                 inOutColor[1] += brightness;
                 inOutColor[2] += brightness;
+            }
+
+            if (enableTintColor) {
+                // vec3 tintRgb = decimalToRgb(u_tintColor);
+                const tintRgb = decimalToRgb(uniforms.u_tintColor, __col3);
+
+                // gl_FragColor.rgb *= tintRgb;
+                inOutColor[0] *= tintRgb[0];
+                inOutColor[1] *= tintRgb[1];
+                inOutColor[2] *= tintRgb[2];
             }
 
             // gl_FragColor.rgb *= gl_FragColor.a + epsilon;

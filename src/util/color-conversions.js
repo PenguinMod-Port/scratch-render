@@ -94,4 +94,19 @@ const hsvToRgb = ([h, s, v], dst) => {
     return dst;
 };
 
-module.exports = {rgbToHsv, hsvToRgb};
+/**
+ * pm: Converts a decimal color value to an RGB array.
+ * Returns [red, green, blue] where each channel is a number from 0-255
+ * 
+ * @param {number}          decimal The decimal color value
+ * @param   {Array<number>} dst     The array to store the RGBA values in
+ * @return  {Array<number>}         The `dst` array passed in
+ */
+const decimalToRgb = (decimal, dst) => {
+    dst[0] = (decimal >> 16) & 0xFF;
+    dst[1] = (decimal >> 8) & 0xFF;
+    dst[2] = decimal & 0xFF;
+    return dst;
+}
+
+module.exports = {rgbToHsv, hsvToRgb, decimalToRgb};
