@@ -220,6 +220,13 @@ class RenderWebGL extends EventEmitter {
         /** @type {module:twgl/m4.Mat4} */
         this._projection = twgl.m4.identity();
 
+        this._camera = {
+            x: 0,
+            y: 0,
+            scale: 1,
+            rotation: 0
+        }
+
         /** @type {ShaderManager} */
         this._shaderManager = new ShaderManager(gl);
 
@@ -512,8 +519,7 @@ class RenderWebGL extends EventEmitter {
         this._yBottom = yBottom;
         this._yTop = yTop;
 
-        // swap yBottom & yTop to fit Scratch convention of +y=up
-        this._projection = twgl.m4.ortho(xLeft, xRight, yBottom, yTop, -1, 1);
+        this._projection = this._calculateProjection();
 
         this._setNativeSize(Math.abs(xRight - xLeft), Math.abs(yBottom - yTop));
     }
@@ -2339,10 +2345,10 @@ class RenderWebGL extends EventEmitter {
             // drawableScale is the "framebuffer-pixel-space" scale of the drawable, as percentages of the drawable's
             // "native size" (so 100 = same as skin's "native size", 200 = twice "native size").
             // If the framebuffer dimensions are the same as the stage's "native" size, there's no need to calculate it.
-            const drawableScale = framebufferSpaceScaleDiffers ? [
-                drawable.scale[0] * opts.framebufferWidth / this._nativeSize[0],
-                drawable.scale[1] * opts.framebufferHeight / this._nativeSize[1]
-            ] : drawable.scale;
+            const drawableScale = (framebufferSpaceScaleDiffers ? [
+                drawable.scale[0] * opts.framebufferWidth / this._nativeSize[0] * this._camera.scale,
+                drawable.scale[1] * opts.framebufferHeight / this._nativeSize[1] * this._camera.scale
+            ] : [drawable.scale[0] * this._camera.scale, drawable.scale[1] * this._camera.scale]);
 
             // Skip drawables with no skin.
             if (!drawable.skin) continue;
@@ -2631,6 +2637,27 @@ class RenderWebGL extends EventEmitter {
                 document.fonts.load(`12px ${family}`);
             }
         }
+    }
+
+    _calculateProjection() {
+        let xLeft = this._xLeft / this._camera.scale + this._camera.x;
+        let xRight = this._xRight / this._camera.scale + this._camera.x;
+        let yBottom = this._yBottom / this._camera.scale + this._camera.y;
+        let yTop = this._yTop / this._camera.scale + this._camera.y;
+
+        return twgl.m4.rotateZ(
+            twgl.m4.ortho(xLeft, xRight, yBottom, yTop, -1, 1), // swap yBottom & yTop to fit Scratch convention of +y=up
+            -this._camera.rotation / 180 * Math.PI
+        );
+    }
+
+    setCamera(x = 0, y = 0, scale = 1, rotation = 0) {
+        this._camera.x = x;
+        this._camera.y = y;
+        this._camera.scale = scale;
+        this._camera.rotation = rotation;
+
+        this._projection = this._calculateProjection();
     }
 }
 
