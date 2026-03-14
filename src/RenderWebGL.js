@@ -224,7 +224,7 @@ class RenderWebGL extends EventEmitter {
             x: 0,
             y: 0,
             scale: 1,
-            rotation: 90
+            rotation: 0
         }
 
         /** @type {ShaderManager} */
@@ -2647,7 +2647,7 @@ class RenderWebGL extends EventEmitter {
 
         return twgl.m4.rotateZ(
             twgl.m4.ortho(xLeft, xRight, yBottom, yTop, -1, 1), // swap yBottom & yTop to fit Scratch convention of +y=up
-            (this._camera.rotation - 90) / 180 * Math.PI
+            -this._camera.rotation / 180 * Math.PI
         );
     }
 
