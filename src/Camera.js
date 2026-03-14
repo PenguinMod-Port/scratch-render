@@ -30,7 +30,6 @@ class Camera {
         });
         if (!drawableFound) return;
         this._renderer.dirty = true;
-        this._renderer.draw();
     }
 
     getState(name = this.defaultName, safe = false) {
