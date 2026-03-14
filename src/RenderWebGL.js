@@ -14,6 +14,7 @@ const ShaderManager = require('./ShaderManager');
 const SVGSkin = require('./SVGSkin');
 const TextBubbleSkin = require('./TextBubbleSkin');
 const EffectTransform = require('./EffectTransform');
+const Camera = require('./Camera');
 const CanvasMeasurementProvider = require('./util/canvas-measurement-provider');
 const log = require('./util/log');
 
@@ -351,6 +352,12 @@ class RenderWebGL extends EventEmitter {
         this._customFontStyles = null;
 
         /**
+         * camera
+         * @type {Camera}
+         */
+        this.camera = new Camera(this);
+
+        /**
          * Export internals for third-party extensions.
          */
         this.exports = {
@@ -363,7 +370,8 @@ class RenderWebGL extends EventEmitter {
             PenSkin,
             SVGSkin,
             CanvasMeasurementProvider,
-            Rectangle
+            Rectangle,
+            Camera
         };
     }
 

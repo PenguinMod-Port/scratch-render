@@ -136,6 +136,8 @@ class Drawable {
          * The drawable may still be considered by pick() if its ID is explicitly given to pick().
          */
         this.interactive = true;
+
+        this.cameraState = this._renderer.camera.defaultName;
     }
 
     setHighQuality (highQuality) {
@@ -491,26 +493,32 @@ class Drawable {
         // _calculateTransform and greatly reduce the ammount of math and array
         // assignments needed.
 
-        const scale0 = this._skinScale[0];
-        const scale1 = this._skinScale[1];
+        const camPos = this._renderer.camera.getPosition(this.cameraState);
+        const camSize = this._renderer.camera.getSize(this.cameraState);
+        const camRot = this._renderer.camera.getRotation(this.cameraState);
+        const camRotS = Math.sin((camRot - 90) / 180 * Math.PI);
+        const camRotC = Math.cos((camRot - 90) / 180 * Math.PI);
+
+        const scale0 = this._skinScale[0] * camSize[0] / 100;
+        const scale1 = this._skinScale[1] * camSize[1] / 100;
         const rotation00 = this._rotationMatrix[0];
         const rotation01 = this._rotationMatrix[1];
         const rotation10 = this._rotationMatrix[4];
         const rotation11 = this._rotationMatrix[5];
         const adjusted0 = this._rotationAdjusted[0];
         const adjusted1 = this._rotationAdjusted[1];
-        const position0 = this._position[0];
-        const position1 = this._position[1];
+        const position0 = this._position[0] - camPos[0];
+        const position1 = this._position[1] - camPos[1];
 
         // Commented assignments show what the values are when the matrix was
         // instantiated. Those values will never change so they do not need to
         // be reassigned.
-        modelMatrix[0] = scale0 * rotation00;
-        modelMatrix[1] = scale0 * rotation01;
+        modelMatrix[0] = scale0 * rotation00 * camRotC - scale0 * rotation01 * camRotS;
+        modelMatrix[1] = scale0 * rotation00 * camRotS + scale0 * rotation01 * camRotC;
         // modelMatrix[2] = 0;
         // modelMatrix[3] = 0;
-        modelMatrix[4] = scale1 * rotation10;
-        modelMatrix[5] = scale1 * rotation11;
+        modelMatrix[4] = scale1 * rotation10 * camRotC - scale1 * rotation11 * camRotS;
+        modelMatrix[5] = scale1 * rotation10 * camRotS + scale1 * rotation11 * camRotC;
         // modelMatrix[6] = 0;
         // modelMatrix[7] = 0;
         // modelMatrix[8] = 0;
@@ -521,6 +529,12 @@ class Drawable {
         modelMatrix[13] = (rotation01 * adjusted0) + (rotation11 * adjusted1) + position1;
         // modelMatrix[14] = 0;
         // modelMatrix[15] = 1;
+
+        // do cam rotation seperately cause otherwise it would be a loong line
+        const m30 = modelMatrix[12];
+        const m31 = modelMatrix[13];
+        modelMatrix[12] = m30 * camRotC - m31 * camRotS;
+        modelMatrix[13] = m30 * camRotS + m31 * camRotC;
 
         this._transformDirty = false;
     }
