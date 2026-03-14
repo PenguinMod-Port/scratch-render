@@ -23,8 +23,7 @@ class Camera {
         let drawableFound = false;
         this._renderer._allDrawables.forEach(drawable => {
             if (drawable.cameraState === name) {
-                drawable._transformDirty = true;
-                drawable._rotationTransformDirty = true;
+                drawable.setTransformDirty();
                 drawableFound = true;
             }
         });

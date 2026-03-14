@@ -766,6 +766,11 @@ class Drawable {
         this.setTransformDirty();
     }
 
+    setCameraState (name) {
+        this.cameraState = name;
+        this.setTransformDirty();
+    }
+
     /**
      * Calculate a color to represent the given ID number. At least one component of
      * the resulting color will be non-zero if the ID is not RenderConstants.ID_NONE.
