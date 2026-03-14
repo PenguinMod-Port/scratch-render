@@ -2347,10 +2347,11 @@ class RenderWebGL extends EventEmitter {
             // drawableScale is the "framebuffer-pixel-space" scale of the drawable, as percentages of the drawable's
             // "native size" (so 100 = same as skin's "native size", 200 = twice "native size").
             // If the framebuffer dimensions are the same as the stage's "native" size, there's no need to calculate it.
+            const camSize = this.camera.getSize(drawable.cameraState);
             const drawableScale = framebufferSpaceScaleDiffers ? [
-                drawable.scale[0] * opts.framebufferWidth / this._nativeSize[0],
-                drawable.scale[1] * opts.framebufferHeight / this._nativeSize[1]
-            ] : drawable.scale;
+                drawable.scale[0] * camSize[0] / 100 * opts.framebufferWidth / this._nativeSize[0],
+                drawable.scale[1] * camSize[1] / 100 * opts.framebufferHeight / this._nativeSize[1]
+            ] : [drawable.scale[0] * camSize[0] / 100, drawable.scale[1] * camSize[1] / 100];
 
             // Skip drawables with no skin.
             if (!drawable.skin) continue;
