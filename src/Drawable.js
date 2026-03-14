@@ -769,6 +769,7 @@ class Drawable {
     setCameraState (name) {
         this.cameraState = name;
         this.setTransformDirty();
+        this._renderer.dirty = true;
     }
 
     /**
