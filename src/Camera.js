@@ -36,7 +36,7 @@ class Camera {
     }
 
     createState(name, state = {}) {
-        if (typeof name === "symbol") return;
+        if (typeof name === "symbol") return Camera.default(); // has no effect
         return (this.states[name] = Object.assign(Camera.default(), state));
     }
 
