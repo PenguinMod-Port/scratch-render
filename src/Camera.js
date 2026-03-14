@@ -32,7 +32,8 @@ class Camera {
     }
 
     getState(name = this.defaultName, safe = false) {
-        return this.states[name] || (safe && this.states[this.unbindedName]);
+        if (name === this.unbindedName) return Camera.default();
+        return this.states[name] || (safe && Camera.default());
     }
 
     createState(name, state = {}) {
