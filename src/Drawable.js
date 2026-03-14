@@ -495,9 +495,9 @@ class Drawable {
 
         const camPos = this._renderer.camera.getPosition(this.cameraState);
         const camSize = this._renderer.camera.getSize(this.cameraState);
-        const camRot = this._renderer.camera.getRotation(this.cameraState);
-        const camRotS = Math.sin((camRot - 90) / 180 * Math.PI);
-        const camRotC = Math.cos((camRot - 90) / 180 * Math.PI);
+        const camRot = this._renderer.camera.getDirection(this.cameraState) - 90;
+        const camRotS = Math.sin(camRot / 180 * Math.PI);
+        const camRotC = Math.cos(camRot / 180 * Math.PI);
 
         const scale0 = this._skinScale[0] * camSize[0] / 100;
         const scale1 = this._skinScale[1] * camSize[1] / 100;

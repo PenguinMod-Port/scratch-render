@@ -3,7 +3,7 @@ class Camera {
         return {
             pos: [0, 0],
             size: [100, 100],
-            rotation: 90
+            direction: 90
         }
     }
 
@@ -70,15 +70,15 @@ class Camera {
         this._updateCamera(name);
     }
 
-    getRotation(name = this.defaultName) {
+    getDirection(name = this.defaultName) {
         let state = this.getState(name, true);
-        return state.rotation;
+        return state.direction;
     }
 
-    setRotation(rotation, name = this.defaultName) {
+    setDirection(rotation, name = this.defaultName) {
         let state = this.getState(name);
         if (!state) return;
-        state.rotation = rotation;
+        state.direction = rotation;
         this._updateCamera(name);
     }
 }

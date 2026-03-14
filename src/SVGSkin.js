@@ -81,7 +81,7 @@ class SVGSkin extends Skin {
         }
 
         // We can't use nearest neighbor unless we are a multiple of 90 rotation
-        if ((drawable._direction + this._renderer.camera.getRotation(drawable.cameraState)) % 90 !== 0) {
+        if ((drawable._direction + this._renderer.camera.getDirection(drawable.cameraState)) % 90 !== 0) {
             return false;
         }
 
