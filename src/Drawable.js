@@ -109,6 +109,7 @@ class Drawable {
         this._inverseMatrix = twgl.m4.identity();
         this._inverseTransformDirty = true;
         this._visible = true;
+        this._blendMode = Drawable.BlendMode.NORMAL;
 
         /** A bitmask identifying which effects are currently in use.
          * @readonly
@@ -833,6 +834,24 @@ class Drawable {
         if (drawable.enabledEffects === 0) return textColor;
         return EffectTransform.transformColor(drawable, textColor, effectMask);
     }
+
+    setBlendMode(blendMode) {
+        this._blendMode = blendMode;
+        this._renderer.dirty = true;
+    }
+
+    getBlendMode() {
+        return this._blendMode;
+    }
+}
+
+Drawable.BlendMode = {
+    NORMAL: 0,
+    ADDITIVE: 1,
+    MULTIPLICATIVE: 2,
+    SUBTRACTIVE: 3,
+    SCREEN: 4,
+    DIFFERENCE: 5
 }
 
 module.exports = Drawable;

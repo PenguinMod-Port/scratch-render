@@ -2397,6 +2397,18 @@ class RenderWebGL extends EventEmitter {
                 );
             }
 
+            let blendInfo = [];
+            switch (drawable._blendMode) {
+                case Drawable.BlendMode.NORMAL: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_ALPHA]; break;
+                case Drawable.BlendMode.ADDITIVE: blendInfo = [gl.FUNC_ADD, gl.SRC_ALPHA, gl.ONE]; break;
+                case Drawable.BlendMode.MULTIPLICATIVE: blendInfo = [gl.FUNC_ADD, gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA]; break;
+                case Drawable.BlendMode.SUBTRACTIVE: blendInfo = [gl.FUNC_REVERSE_SUBTRACT, gl.ONE, gl.ONE]; break;
+                case Drawable.BlendMode.SCREEN: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_COLOR]; break;
+                case Drawable.BlendMode.DIFFERENCE: blendInfo = [gl.FUNC_SUBTRACT, gl.ONE, gl.ONE]; break;
+            }
+            gl.blendEquation(blendInfo[0]);
+            gl.blendFunc(blendInfo[1], blendInfo[2]);
+
             twgl.setUniforms(currentShader, uniforms);
             twgl.drawBufferInfo(gl, this._bufferInfo, gl.TRIANGLES);
         }
