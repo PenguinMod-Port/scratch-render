@@ -851,7 +851,9 @@ Drawable.BlendMode = {
     MULTIPLICATIVE: 2,
     SUBTRACTIVE: 3,
     SCREEN: 4,
-    XOR: 5
+    DIFFERENCE: 5,
+    LIGHTEN: 6,
+    DARKEN: 7
 }
 
 module.exports = Drawable;
