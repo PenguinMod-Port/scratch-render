@@ -2003,6 +2003,13 @@ class RenderWebGL extends EventEmitter {
         drawable.updateEffect(effectName, value);
     }
 
+    updateDrawableBlendMode (drawableID, mode) {
+        const drawable = this._allDrawables[drawableID];
+        // TODO: https://github.com/LLK/scratch-vm/issues/2288
+        if (!drawable) return;
+        drawable.setBlendMode(mode);
+    }
+
     /**
      * Update the position, direction, scale, or effect properties of this Drawable.
      * @deprecated Use specific updateDrawable* methods instead.

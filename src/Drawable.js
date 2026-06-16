@@ -835,12 +835,12 @@ class Drawable {
         return EffectTransform.transformColor(drawable, textColor, effectMask);
     }
 
-    setBlendMode(blendMode) {
+    setBlendMode (blendMode) {
         this._blendMode = blendMode;
         this._renderer.dirty = true;
     }
 
-    getBlendMode() {
+    getBlendMode () {
         return this._blendMode;
     }
 }
