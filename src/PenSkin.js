@@ -185,7 +185,7 @@ class PenSkin extends Skin {
      * @return {WebGLTexture} The GL texture representation of this skin when drawing at the given size.
      */
     // eslint-disable-next-line no-unused-vars
-    getTexture (scale) {
+    getTexture (scale, transform) {
         return this._texture;
     }
 
@@ -559,6 +559,16 @@ class PenSkin extends Skin {
 
             this._silhouetteDirty = false;
         }
+    }
+
+    updatePenPointOffset (x, y, scale, rot) {
+        for (let idx = 0; idx < 4 * 6; idx += 4) {
+            this.a_cameraOffset[idx + 0] = x;
+            this.a_cameraOffset[idx + 1] = y;
+            this.a_cameraOffset[idx + 2] = scale;
+            this.a_cameraOffset[idx + 3] = rot;
+        }
+        this._silhouetteDirty = true;
     }
 }
 

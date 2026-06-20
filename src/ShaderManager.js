@@ -1,5 +1,6 @@
 const twgl = require('twgl.js');
 
+const clampNumber = (num, min, max) => Math.max(Math.min(num, max), min);
 
 class ShaderManager {
     /**
@@ -153,7 +154,61 @@ ShaderManager.EFFECT_INFO = {
         mask: 1 << 6,
         converter: x => 1 - (Math.max(0, Math.min(x, 100)) / 100),
         shapeChanges: false
-    }
+    },
+    /** Red effect */
+    red: {
+        uniformName: 'u_red',
+        mask: 1 << 7,
+        converter: x => (((clampNumber(x, -100, 100) / 100) * 4) + 1),
+        shapeChanges: false
+    },
+    /** Green effect */
+    green: {
+        uniformName: 'u_green',
+        mask: 1 << 8,
+        converter: x => (((clampNumber(x, -100, 100) / 100) * 4) + 1),
+        shapeChanges: false
+    },
+    /** Blue effect */
+    blue: {
+        uniformName: 'u_blue',
+        mask: 1 << 9,
+        converter: x => (((clampNumber(x, -100, 100) / 100) * 4) + 1),
+        shapeChanges: false
+    },
+    /** Opaque effect */
+    opaque: {
+        uniformName: 'u_opaque',
+        mask: 1 << 10,
+        converter: x => clampNumber(Math.ceil(x), 1, 100),
+        shapeChanges: false
+    },
+    /** Saturation effect */
+    saturation: {
+        uniformName: 'u_saturation',
+        mask: 1 << 11,
+        converter: x => (x / 100) + 1,
+        shapeChanges: false
+    },
+    /** tintColor effect */
+    tintColor: {
+        uniformName: 'u_tintColor',
+        mask: 1 << 12,
+        converter: x => x - 1,
+        shapeChanges: false
+    },
+    horizontal_shear: {
+        uniformName: 'u_horizontalShear',
+        mask: 1 << 13,
+        converter: x => x / 10,
+        shapeChanges: true
+    },
+    vertical_shear: {
+        uniformName: 'u_verticalShear',
+        mask: 1 << 14,
+        converter: x => x / 10,
+        shapeChanges: true
+    },
 };
 
 /**

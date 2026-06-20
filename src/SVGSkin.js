@@ -32,11 +32,14 @@ class SVGSkin extends Skin {
         /** @type {Array<number>} */
         this._size = [0, 0];
 
+        /** @type {Array<number>} */
+        this._transform = [0, 0];
+
         /** @type {HTMLCanvasElement} */
         this._canvas = document.createElement('canvas');
 
         /** @type {CanvasRenderingContext2D} */
-        this._context = this._canvas.getContext('2d');
+        this._context = this._canvas.getContext("2d", { willReadFrequently: true });
 
         /** @type {Array<WebGLTexture>} */
         this._scaledMIPs = [];
@@ -78,7 +81,7 @@ class SVGSkin extends Skin {
         }
 
         // We can't use nearest neighbor unless we are a multiple of 90 rotation
-        if (drawable._direction % 90 !== 0) {
+        if ((drawable._direction + this._renderer.camera.getDirection(drawable.cameraState)) % 90 !== 0) {
             return false;
         }
 
@@ -100,7 +103,7 @@ class SVGSkin extends Skin {
      * @param {number} scale - The relative size of the MIP
      * @return {SVGMIP} An object that handles creating and updating SVG textures.
      */
-    createMIP (scale) {
+    createMIP (scale, transform) {
         const isLargestMIP = this._largestMIPScale < scale;
         // TW: Silhouette will lazily read image data from our <canvas>. However, this canvas is shared
         // between the Skin and Silhouette so changing it here can mess up Silhouette. To prevent that,
@@ -111,9 +114,17 @@ class SVGSkin extends Skin {
             this._silhouette.unlazy();
         }
 
+        if (!transform) transform = [0, 0];
+        if (!transform[0]) transform = [0, 0];
+        if (!transform[1]) transform = [0, 0];
+
+        // we scale up transform because 100% is a 45 degree angle (half the image width)
+        // we also add 1 to it so this adds size ratther then remove size
+        const tx = (transform[0] * 100) / 200 + 1;
+        const ty = (transform[1] * 100) / 200 + 1;
         const [width, height] = this._size;
-        this._canvas.width = width * scale;
-        this._canvas.height = height * scale;
+        this._canvas.width = width * scale * tx;
+        this._canvas.height = height * scale * ty;
         if (
             this._canvas.width <= 0 ||
             this._canvas.height <= 0 ||
@@ -125,7 +136,8 @@ class SVGSkin extends Skin {
             this._svgImage.naturalHeight <= 0
         ) return super.getTexture();
         this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
-        this._context.setTransform(scale, 0, 0, scale, 0, 0);
+        // console.log(transform);
+        this._context.setTransform(scale, transform[0], transform[1], scale, 0, 0);
         this._context.drawImage(this._svgImage, 0, 0);
 
         // TW: Reading image data from <canvas> is very slow and causes animations to stutter,
@@ -158,9 +170,15 @@ class SVGSkin extends Skin {
 
     /**
      * @param {Array<number>} scale - The scaling factors to be used, each in the [0,100] range.
+     * @param {Array<number>} transform - The scaling factors to be used, each in the [0,100] range.
      * @return {WebGLTexture} The GL texture representation of this skin when drawing at the given scale.
      */
-    getTexture (scale) {
+    getTexture(scale, transform) {
+        // sometimes transform has undefined passed into it
+        if (!transform) transform = [0, 0];
+        if (typeof transform[0] !== "number") transform = [0, 0];
+        if (typeof transform[1] !== "number") transform = [0, 0];
+
         // The texture only ever gets uniform scale. Take the larger of the two axes.
         const scaleMax = scale ? Math.max(Math.abs(scale[0]), Math.abs(scale[1])) : 100;
         const requestedScale = Math.min(scaleMax / 100, this._maxTextureScale);
@@ -173,11 +191,40 @@ class SVGSkin extends Skin {
         // Can't use bitwise stuff here because we need to handle negative exponents
         const mipScale = Math.pow(2, mipLevel - INDEX_OFFSET);
 
-        if (this._svgImageLoaded && !this._scaledMIPs[mipLevel]) {
-            this._scaledMIPs[mipLevel] = this.createMIP(mipScale);
+        // this was split into 2 if statements because its hard to read
+        if (this._svgImageLoaded) {
+            // if there is no scaled mip for this level
+            // or the passed in transform doesnt equal the current transform
+            if (
+                !(
+                    this._scaledMIPs[mipLevel] &&
+                    this.isTransformEqual(this._transform, transform)
+                )
+            ) {
+                this._scaledMIPs[mipLevel] = this.createMIP(
+                    mipScale,
+                    transform || [0, 0],
+                );
+                this._transform = transform;
+            }
         }
 
         return this._scaledMIPs[mipLevel] || super.getTexture();
+    }
+
+    /**
+     * Checks the values of both transform arrays instead of the entire array.
+     * This is because it causes some goofy bug if you check the entire array where they dont equal for some reason.
+     * @param {Array<number>} transform
+     * @param {Array<number>} checkingTransform
+     */
+    isTransformEqual(transform, checkingTransform) {
+        if (!transform) return false;
+        if (!checkingTransform) return false;
+        let value = 0;
+        if (transform[0] === checkingTransform[0]) value++;
+        if (transform[1] === checkingTransform[1]) value++;
+        return value === 2;
     }
 
     /**

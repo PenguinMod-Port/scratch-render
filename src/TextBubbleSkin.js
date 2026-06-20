@@ -67,6 +67,7 @@ class TextBubbleSkin extends Skin {
          * Supplied values are considered trusted and will not be further checked or sanitized.
          * Updating skin style will not reposition drawables.
          */
+        // TODO: see if gsa's _props is used elsewhere since _style is just that but again
         this._style = DEFAULT_BUBBLE_STYLE;
 
         this.measurementProvider = new CanvasMeasurementProvider(this._canvas.getContext('2d'));
@@ -108,6 +109,7 @@ class TextBubbleSkin extends Skin {
         this._bubbleType = type;
         this._pointsLeft = pointsLeft;
 
+        this._restyleCanvas();
         this._textDirty = true;
         this._textureDirty = true;
         this.emitWasAltered();
@@ -295,6 +297,10 @@ class TextBubbleSkin extends Skin {
         }
 
         return this._texture;
+    }
+
+    getAllProps() {
+        return DEFAULT_BUBBLE_STYLE;
     }
 }
 
