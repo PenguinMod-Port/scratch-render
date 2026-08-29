@@ -171,7 +171,7 @@ class TextBubbleSkin extends Skin {
      * @param {number} scale The scale to render the bubble at
      */
     _renderTextBubble (scale) {
-        const ctx = this._context.getContext('2d');
+        const ctx = this._context;
 
         if (this._textDirty) {
             this._reflowLines();
