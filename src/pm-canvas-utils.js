@@ -30,6 +30,6 @@ const disposeCanvas = function (canvas) {
 
 module.exports = {
     createCanvas,
-    getContext,
+    get2dContext,
     disposeCanvas,
 };
