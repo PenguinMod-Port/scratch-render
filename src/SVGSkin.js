@@ -1,5 +1,6 @@
 const twgl = require('twgl.js');
 
+const { createCanvas, get2dContext, disposeCanvas } = require('./pm-canvas-utils');
 const Skin = require('./Skin');
 const {loadSvgString, serializeSvgToString} = require('@turbowarp/scratch-svg-renderer');
 const ShaderManager = require('./ShaderManager');
@@ -36,10 +37,10 @@ class SVGSkin extends Skin {
         this._transform = [0, 0];
 
         /** @type {HTMLCanvasElement} */
-        this._canvas = document.createElement('canvas');
+        this._canvas = createCanvas();
 
         /** @type {CanvasRenderingContext2D} */
-        this._context = this._canvas.getContext("2d", { willReadFrequently: true });
+        this._context = get2dContext(this._canvas);
 
         /** @type {Array<WebGLTexture>} */
         this._scaledMIPs = [];
@@ -59,6 +60,7 @@ class SVGSkin extends Skin {
      */
     dispose () {
         this.resetMIPs();
+        disposeCanvas(this._canvas);
         super.dispose();
     }
 

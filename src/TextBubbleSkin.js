@@ -1,5 +1,6 @@
 const twgl = require('twgl.js');
 
+const { createCanvas, get2dContext, disposeCanvas } = require('./pm-canvas-utils');
 const CanvasMeasurementProvider = require('./util/canvas-measurement-provider');
 const Skin = require('./Skin');
 
@@ -36,7 +37,10 @@ class TextBubbleSkin extends Skin {
         super(id, renderer);
 
         /** @type {HTMLCanvasElement} */
-        this._canvas = document.createElement('canvas');
+        this._canvas = createCanvas();
+
+        /** @type {CanvasRenderingContext2D} */
+        this._context = get2dContext(this._canvas);
 
         /** @type {Array<number>} */
         this._size = [0, 0];
@@ -70,7 +74,7 @@ class TextBubbleSkin extends Skin {
         // TODO: see if gsa's _props is used elsewhere since _style is just that but again
         this._style = DEFAULT_BUBBLE_STYLE;
 
-        this.measurementProvider = new CanvasMeasurementProvider(this._canvas.getContext('2d'));
+        this.measurementProvider = new CanvasMeasurementProvider(this._context);
         this.textWrapper = renderer.createTextWrapper(this.measurementProvider);
 
         this._restyleCanvas();
@@ -84,7 +88,7 @@ class TextBubbleSkin extends Skin {
             this._renderer.gl.deleteTexture(this._texture);
             this._texture = null;
         }
-        this._canvas = null;
+        disposeCanvas(this._canvas);
         super.dispose();
     }
 
@@ -134,7 +138,7 @@ class TextBubbleSkin extends Skin {
      * Re-style the canvas after resizing it. This is necessary to ensure proper text measurement.
      */
     _restyleCanvas () {
-        this._canvas.getContext('2d').font = `${this._style.fontSize}px ${this._style.font}, sans-serif`;
+        this._context.font = `${this._style.fontSize}px ${this._style.font}, sans-serif`;
     }
 
     /**
@@ -167,7 +171,7 @@ class TextBubbleSkin extends Skin {
      * @param {number} scale The scale to render the bubble at
      */
     _renderTextBubble (scale) {
-        const ctx = this._canvas.getContext('2d');
+        const ctx = this._context.getContext('2d');
 
         if (this._textDirty) {
             this._reflowLines();
@@ -279,8 +283,7 @@ class TextBubbleSkin extends Skin {
             this._renderTextBubble(requestedScale);
             this._textureDirty = false;
 
-            const context = this._canvas.getContext('2d');
-            const textureData = context.getImageData(0, 0, this._canvas.width, this._canvas.height);
+            const textureData = this._context.getImageData(0, 0, this._canvas.width, this._canvas.height);
 
             const gl = this._renderer.gl;
 
