@@ -2388,6 +2388,7 @@ class RenderWebGL extends EventEmitter {
                 });
             }
 
+            drawable.uniformApplied = true;
             Object.assign(uniforms,
                 drawable.skin.getUniforms(drawableScale),
                 drawable.getUniforms());
