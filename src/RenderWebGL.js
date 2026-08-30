@@ -318,9 +318,8 @@ class RenderWebGL extends EventEmitter {
 
         /**
          * pm: Controls whether or not sprites will render offscreen.
-         * set to true by default as this is still expieremental
          */
-        this.renderOffscreen = true;
+        this.renderOffscreen = false;
 
         /**
          * Whether projects should be able to access the contents of private skins such as webcams.
