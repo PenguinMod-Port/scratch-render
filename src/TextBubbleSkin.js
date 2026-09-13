@@ -148,14 +148,20 @@ class TextBubbleSkin extends Skin {
         this._lines = this.textWrapper.wrapText(this._style.maxLineWidth, this._text);
 
         // Measure width of longest line to avoid extra-wide bubbles
+        // Additionally measure the bubble height
         let longestLineWidth = 0;
+        let bubbleHeight = 0;
         for (const line of this._lines) {
-            longestLineWidth = Math.max(longestLineWidth, this.measurementProvider.measureText(line));
+            const result = this.measurementProvider.measureText(line);
+            longestLineWidth = Math.max(longestLineWidth, result.width);
+            bubbleHeight += result.height;
         }
+
+        bubbleHeight = Math.max(bubbleHeight, this._style.lineHeight * this._lines.length);
 
         // Calculate the canvas-space sizes of the padded text area and full text bubble
         const paddedWidth = Math.max(longestLineWidth, this._style.minWidth) + (this._style.padding * 2);
-        const paddedHeight = (this._style.lineHeight * this._lines.length) + (this._style.padding * 2);
+        const paddedHeight = bubbleHeight + (this._style.padding * 2);
 
         this._textAreaSize.width = paddedWidth;
         this._textAreaSize.height = paddedHeight;
