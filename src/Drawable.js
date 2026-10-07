@@ -640,9 +640,25 @@ class Drawable {
             this._calculateTransform();
         }
         const slice = 8; // px, how tall the top slice to measure should be.
-        const transformedHullPoints = this._getTransformedHullPoints();
+        const camPos = this._renderer.camera.getPosition(this.cameraState);
+        const camSize = this._renderer.camera.getSize(this.cameraState);
+        const camRot = this._renderer.camera.getDirection(this.cameraState) - 90;
+        const transformedHullPoints = this._getTransformedHullPoints()
+            .map(p => {
+                p[0] /= camSize[0] / 100;
+                p[1] /= camSize[1] / 100;
+                
+                p[0] += camPos[0];
+                p[1] += camPos[1];
+
+                // rotation do somewhen
+
+                return p;
+            });
+
         const maxY = Math.max.apply(null, transformedHullPoints.map(p => p[1]));
         const filteredHullPoints = transformedHullPoints.filter(p => p[1] > maxY - slice);
+
         // Search through filtered points to generate box on axes.
         result = result || new Rectangle();
         result.initFromPointsAABB(filteredHullPoints);

@@ -534,6 +534,16 @@ class RenderWebGL extends EventEmitter {
         return [this._nativeSize[0], this._nativeSize[1]];
     }
 
+    getCameraBounds(name) {
+        const camera = this.camera.getState(name, true);
+        return {
+            left: (-this._nativeSize[0] / 2 + camera.pos[0]) / camera.size[0] * 100,
+            right: (this._nativeSize[0] / 2 + camera.pos[0]) / camera.size[0] * 100,
+            top: (this._nativeSize[1] / 2 + camera.pos[1]) / camera.size[1] * 100,
+            bottom: (-this._nativeSize[1] / 2 + camera.pos[1]) / camera.size[1] * 100,
+        }
+    }
+
     /**
      * Set the "native" size of the stage, which is used for pen, query renders, etc.
      * @param {int} width - the new width to set.
