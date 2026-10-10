@@ -870,7 +870,7 @@ class RenderWebGL extends EventEmitter {
     }
 
     get _visibleDrawList () {
-        return this._drawList.filter(id => this._allDrawables[id]._visible);
+        return this._drawList.filter(id => this._allDrawables[id].getVisible());
     }
 
     // Given a layer group, return the index where it ends (non-inclusive),
@@ -1396,13 +1396,13 @@ class RenderWebGL extends EventEmitter {
      */
     isTouchingDrawables (drawableID, candidateIDs = this._drawList) {
         // if we are invisible we don't touch anything.
-        if (!this._allDrawables[drawableID]._visible) {
+        if (!this._allDrawables[drawableID].getVisible()) {
             return false;
         }
 
         const candidates = this._candidatesTouching(drawableID,
             // even if passed an invisible drawable, we will NEVER touch it!
-            candidateIDs.filter(id => this._allDrawables[id]._visible));
+            candidateIDs.filter(id => this._allDrawables[id].getVisible()));
         if (candidates.length === 0) {
             return false;
         }
@@ -1443,13 +1443,13 @@ class RenderWebGL extends EventEmitter {
      */
     getTouchingDrawablesPoint (drawableID, candidateIDs = this._drawList) {
         // if we are invisible we don't touch anything.
-        if (!this._allDrawables[drawableID]._visible) {
+        if (!this._allDrawables[drawableID].getVisible()) {
             return false;
         }
 
         const candidates = this._candidatesTouching(drawableID,
             // even if passed an invisible drawable, we will NEVER touch it!
-            candidateIDs.filter(id => this._allDrawables[id]._visible));
+            candidateIDs.filter(id => this._allDrawables[id].getVisible()));
         if (candidates.length === 0) {
             return null;
         }
@@ -1881,7 +1881,7 @@ class RenderWebGL extends EventEmitter {
                 const drawable = this._allDrawables[id];
                 // Text bubbles aren't considered in "touching" queries
                 if (drawable.skin instanceof TextBubbleSkin) continue;
-                if (drawable.skin && drawable._visible) {
+                if (drawable.skin && drawable.getVisible()) {
                     // If private skin access is disabled, do not allow projects to use touching blocks to guess the
                     // contents of a private skin.
                     if (!this.allowPrivateSkinAccess && drawable.skin.private) continue;

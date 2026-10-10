@@ -216,7 +216,7 @@ class Drawable {
      * @returns {boolean} whether this Drawable is visible.
      */
     getVisible () {
-        return this._visible;
+        return this._visible && this._renderer.camera.getVisible(this.cameraState);
     }
 
     /**
