@@ -506,8 +506,8 @@ class Drawable {
         const rotation01 = this._rotationMatrix[1];
         const rotation10 = this._rotationMatrix[4];
         const rotation11 = this._rotationMatrix[5];
-        const adjusted0 = this._rotationAdjusted[0];
-        const adjusted1 = this._rotationAdjusted[1];
+        const adjusted0 = this._rotationAdjusted[0] * camSize[0] / 100;
+        const adjusted1 = this._rotationAdjusted[1] * camSize[1] / 100;
         const position0 = (this._position[0] - camPos[0]) * camSize[0] / 100;
         const position1 = (this._position[1] - camPos[1]) * camSize[1] / 100;
 
