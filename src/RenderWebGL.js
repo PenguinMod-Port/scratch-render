@@ -238,6 +238,8 @@ class RenderWebGL extends EventEmitter {
 
         /** @type {Array.<snapshotCallback>} */
         this._snapshotCallbacks = [];
+        /** @type {Array.<string>} */
+        this._snapshotCameraFilter = [];
 
         /** @type {Array<number>} */
         // Don't set this directly-- use setBackgroundColor so it stays in sync with _backgroundColor3b
@@ -1035,13 +1037,16 @@ class RenderWebGL extends EventEmitter {
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         const snapshotRequested = this._snapshotCallbacks.length > 0;
+        const cameraFilter = snapshotRequested ? this._snapshotCameraFilter[0] : null
+
         // eslint-disable-next-line no-negated-condition
         if (!this.xrSplitting) {
             // draw normally
             this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, this._projection, {
                 framebufferWidth: gl.canvas.width,
                 framebufferHeight: gl.canvas.height,
-                skipPrivateSkins: snapshotRequested
+                skipPrivateSkins: snapshotRequested,
+                cameraFilter
             });
         } else {
             // draw split
@@ -1075,27 +1080,31 @@ class RenderWebGL extends EventEmitter {
             // draw left eye
             gl.scissor(0, 0, width / 2, height);
             this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, projection1, {
-                    framebufferWidth: width,
-                    framebufferHeight: height,
-                    skipPrivateSkins: snapshotRequested
+                framebufferWidth: width,
+                framebufferHeight: height,
+                skipPrivateSkins: snapshotRequested,
+                cameraFilter
             });
             // draw right eye
             gl.scissor(width / 2, 0, width / 2, height);
             this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, projection2, {
                 framebufferWidth: width,
                 framebufferHeight: height,
-                skipPrivateSkins: snapshotRequested
+                skipPrivateSkins: snapshotRequested,
+                cameraFilter
             });
             gl.disable(gl.SCISSOR_TEST);
         }
 
         if (snapshotRequested) {
             const snapshot = gl.canvas.toDataURL();
-            this._snapshotCallbacks.forEach(cb => cb(snapshot));
-            this._snapshotCallbacks = [];
+            this._snapshotCallbacks[0](snapshot);
+            this._snapshotCallbacks.shift();
+            this._snapshotCameraFilter.shift();
             // We need to make sure to always render next frame so that private skins
             // that were skipped this frame will become visible again shortly.
             this.dirty = true;
+            this.draw(); // recursive aah!
         }
     }
 
@@ -2314,6 +2323,7 @@ class RenderWebGL extends EventEmitter {
      * @param {int} opts.framebufferWidth The width of the framebuffer being drawn onto. Defaults to "native" width
      * @param {int} opts.framebufferHeight The height of the framebuffer being drawn onto. Defaults to "native" height
      * @param {boolean} opts.skipPrivateSkins Do not draw private skins.
+     * @param {string} opts.cameraFilter filter by camera state
      * @private
      */
     _drawThese (drawables, drawMode, projection, opts = {}) {
@@ -2376,6 +2386,8 @@ class RenderWebGL extends EventEmitter {
 
             // Skip private skins, if requested.
             if (opts.skipPrivateSkins && drawable.skin.private) continue;
+
+            if (opts.cameraFilter && drawable.cameraState !== opts.cameraFilter) continue;
 
             // Skip drawables with a skin that does not have a texture.
             if (!drawable.skin.getTexture(drawableScale)) continue;
@@ -2623,6 +2635,17 @@ class RenderWebGL extends EventEmitter {
     requestSnapshot (callback) {
         this.dirty = true;
         this._snapshotCallbacks.push(callback);
+        this._snapshotCameraFilter.push(null);
+    }
+
+    /**
+     * @param {string} state camera state
+     * @param {snapshotCallback} callback Function called in the next frame with the snapshot data
+     */
+    requestCameraSnapshot (state, callback) {
+        this.dirty = true;
+        this._snapshotCallbacks.push(callback);
+        this._snapshotCameraFilter.push(state);
     }
 
     getBubbleDefaults () {
