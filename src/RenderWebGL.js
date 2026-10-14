@@ -2368,9 +2368,11 @@ class RenderWebGL extends EventEmitter {
                 }
             }
 
+            if (opts.cameraFilter && drawable.cameraState !== opts.cameraFilter) continue;
+
             // Hidden drawables (e.g., by a "hide" block) are not drawn unless
             // the ignoreVisibility flag is used (e.g. for stamping or touchingColor).
-            if (!drawable.getVisible() && !opts.ignoreVisibility) continue;
+            if (!drawable.getVisible() && !opts.ignoreVisibility && !(opts.cameraFilter && drawable._visible)) continue;
 
             // drawableScale is the "framebuffer-pixel-space" scale of the drawable, as percentages of the drawable's
             // "native size" (so 100 = same as skin's "native size", 200 = twice "native size").
@@ -2386,8 +2388,6 @@ class RenderWebGL extends EventEmitter {
 
             // Skip private skins, if requested.
             if (opts.skipPrivateSkins && drawable.skin.private) continue;
-
-            if (opts.cameraFilter && drawable.cameraState !== opts.cameraFilter) continue;
 
             // Skip drawables with a skin that does not have a texture.
             if (!drawable.skin.getTexture(drawableScale)) continue;
