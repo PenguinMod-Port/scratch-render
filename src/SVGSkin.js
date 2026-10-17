@@ -60,6 +60,7 @@ class SVGSkin extends Skin {
      */
     dispose () {
         this.resetMIPs();
+        this._svgImage.onload = null;
         disposeCanvas(this._canvas);
         super.dispose();
     }
