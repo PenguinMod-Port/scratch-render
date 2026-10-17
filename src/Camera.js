@@ -3,7 +3,8 @@ class Camera {
         return {
             pos: [0, 0],
             size: [100, 100],
-            direction: 90
+            direction: 90,
+            visible: true
         }
     }
 
@@ -79,6 +80,18 @@ class Camera {
         let state = this.getState(name);
         if (!state) return;
         state.direction = rotation;
+        this._updateCamera(name);
+    }
+
+    getVisible(name = this.defaultName) {
+        let state = this.getState(name, true);
+        return state.visible;
+    }
+
+    setVisible(visible, name = this.defaultName) {
+        let state = this.getState(name);
+        if (!state) return;
+        state.visible = visible;
         this._updateCamera(name);
     }
 }

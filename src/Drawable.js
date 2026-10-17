@@ -216,7 +216,7 @@ class Drawable {
      * @returns {boolean} whether this Drawable is visible.
      */
     getVisible () {
-        return this._visible;
+        return this._visible && this._renderer.camera.getVisible(this.cameraState);
     }
 
     /**
@@ -506,8 +506,8 @@ class Drawable {
         const rotation01 = this._rotationMatrix[1];
         const rotation10 = this._rotationMatrix[4];
         const rotation11 = this._rotationMatrix[5];
-        const adjusted0 = this._rotationAdjusted[0];
-        const adjusted1 = this._rotationAdjusted[1];
+        const adjusted0 = this._rotationAdjusted[0] * camSize[0] / 100;
+        const adjusted1 = this._rotationAdjusted[1] * camSize[1] / 100;
         const position0 = (this._position[0] - camPos[0]) * camSize[0] / 100;
         const position1 = (this._position[1] - camPos[1]) * camSize[1] / 100;
 
@@ -640,9 +640,25 @@ class Drawable {
             this._calculateTransform();
         }
         const slice = 8; // px, how tall the top slice to measure should be.
-        const transformedHullPoints = this._getTransformedHullPoints();
+        const camPos = this._renderer.camera.getPosition(this.cameraState);
+        const camSize = this._renderer.camera.getSize(this.cameraState);
+        const camRot = this._renderer.camera.getDirection(this.cameraState) - 90;
+        const transformedHullPoints = this._getTransformedHullPoints()
+            .map(p => {
+                p[0] /= camSize[0] / 100;
+                p[1] /= camSize[1] / 100;
+                
+                p[0] += camPos[0];
+                p[1] += camPos[1];
+
+                // rotation do somewhen
+
+                return p;
+            });
+
         const maxY = Math.max.apply(null, transformedHullPoints.map(p => p[1]));
         const filteredHullPoints = transformedHullPoints.filter(p => p[1] > maxY - slice);
+
         // Search through filtered points to generate box on axes.
         result = result || new Rectangle();
         result.initFromPointsAABB(filteredHullPoints);

@@ -38,8 +38,13 @@ class CanvasMeasurementProvider {
     measureText (text) {
         const cacheName = this._ctx.font + text;
         if (!this._cache[cacheName]) {
-            this._cache[cacheName] = this._ctx.measureText(text).actualBoundingBoxRight;
+            const measurement = this._ctx.measureText(text);
+            this._cache[cacheName] = {
+                width: measurement.actualBoundingBoxRight,
+                height: measurement.actualBoundingBoxAscent + measurement.actualBoundingBoxDescent,
+            }
         }
+
         return this._cache[cacheName];
     }
 

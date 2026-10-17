@@ -238,6 +238,8 @@ class RenderWebGL extends EventEmitter {
 
         /** @type {Array.<snapshotCallback>} */
         this._snapshotCallbacks = [];
+        /** @type {Array.<string>} */
+        this._snapshotCameraFilter = [];
 
         /** @type {Array<number>} */
         // Don't set this directly-- use setBackgroundColor so it stays in sync with _backgroundColor3b
@@ -322,9 +324,8 @@ class RenderWebGL extends EventEmitter {
 
         /**
          * pm: Controls whether or not sprites will render offscreen.
-         * set to true by default as this is still expieremental
          */
-        this.renderOffscreen = true;
+        this.renderOffscreen = false;
 
         /**
          * Whether projects should be able to access the contents of private skins such as webcams.
@@ -537,6 +538,16 @@ class RenderWebGL extends EventEmitter {
      */
     getNativeSize () {
         return [this._nativeSize[0], this._nativeSize[1]];
+    }
+
+    getCameraBounds(name) {
+        const camera = this.camera.getState(name, true);
+        return {
+            left: (-this._nativeSize[0] / 2 + camera.pos[0]) / camera.size[0] * 100,
+            right: (this._nativeSize[0] / 2 + camera.pos[0]) / camera.size[0] * 100,
+            top: (this._nativeSize[1] / 2 + camera.pos[1]) / camera.size[1] * 100,
+            bottom: (-this._nativeSize[1] / 2 + camera.pos[1]) / camera.size[1] * 100,
+        }
     }
 
     /**
@@ -865,7 +876,7 @@ class RenderWebGL extends EventEmitter {
     }
 
     get _visibleDrawList () {
-        return this._drawList.filter(id => this._allDrawables[id]._visible);
+        return this._drawList.filter(id => this._allDrawables[id].getVisible());
     }
 
     // Given a layer group, return the index where it ends (non-inclusive),
@@ -1045,13 +1056,16 @@ class RenderWebGL extends EventEmitter {
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         const snapshotRequested = this._snapshotCallbacks.length > 0;
+        const cameraFilter = snapshotRequested ? this._snapshotCameraFilter[0] : null
+
         // eslint-disable-next-line no-negated-condition
         if (!this.xrSplitting) {
             // draw normally
             this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, this._projection, {
                 framebufferWidth: gl.canvas.width,
                 framebufferHeight: gl.canvas.height,
-                skipPrivateSkins: snapshotRequested
+                skipPrivateSkins: snapshotRequested,
+                cameraFilter
             });
         } else {
             // draw split
@@ -1085,27 +1099,31 @@ class RenderWebGL extends EventEmitter {
             // draw left eye
             gl.scissor(0, 0, width / 2, height);
             this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, projection1, {
-                    framebufferWidth: width,
-                    framebufferHeight: height,
-                    skipPrivateSkins: snapshotRequested
+                framebufferWidth: width,
+                framebufferHeight: height,
+                skipPrivateSkins: snapshotRequested,
+                cameraFilter
             });
             // draw right eye
             gl.scissor(width / 2, 0, width / 2, height);
             this._drawThese(this._drawList, ShaderManager.DRAW_MODE.default, projection2, {
                 framebufferWidth: width,
                 framebufferHeight: height,
-                skipPrivateSkins: snapshotRequested
+                skipPrivateSkins: snapshotRequested,
+                cameraFilter
             });
             gl.disable(gl.SCISSOR_TEST);
         }
 
         if (snapshotRequested) {
             const snapshot = gl.canvas.toDataURL();
-            this._snapshotCallbacks.forEach(cb => cb(snapshot));
-            this._snapshotCallbacks = [];
+            this._snapshotCallbacks[0](snapshot);
+            this._snapshotCallbacks.shift();
+            this._snapshotCameraFilter.shift();
             // We need to make sure to always render next frame so that private skins
             // that were skipped this frame will become visible again shortly.
             this.dirty = true;
+            this.draw(); // recursive aah!
         }
     }
 
@@ -1406,13 +1424,13 @@ class RenderWebGL extends EventEmitter {
      */
     isTouchingDrawables (drawableID, candidateIDs = this._drawList) {
         // if we are invisible we don't touch anything.
-        if (!this._allDrawables[drawableID]._visible) {
+        if (!this._allDrawables[drawableID].getVisible()) {
             return false;
         }
 
         const candidates = this._candidatesTouching(drawableID,
             // even if passed an invisible drawable, we will NEVER touch it!
-            candidateIDs.filter(id => this._allDrawables[id]._visible));
+            candidateIDs.filter(id => this._allDrawables[id].getVisible()));
         if (candidates.length === 0) {
             return false;
         }
@@ -1453,13 +1471,13 @@ class RenderWebGL extends EventEmitter {
      */
     getTouchingDrawablesPoint (drawableID, candidateIDs = this._drawList) {
         // if we are invisible we don't touch anything.
-        if (!this._allDrawables[drawableID]._visible) {
+        if (!this._allDrawables[drawableID].getVisible()) {
             return false;
         }
 
         const candidates = this._candidatesTouching(drawableID,
             // even if passed an invisible drawable, we will NEVER touch it!
-            candidateIDs.filter(id => this._allDrawables[id]._visible));
+            candidateIDs.filter(id => this._allDrawables[id].getVisible()));
         if (candidates.length === 0) {
             return null;
         }
@@ -1891,7 +1909,7 @@ class RenderWebGL extends EventEmitter {
                 const drawable = this._allDrawables[id];
                 // Text bubbles aren't considered in "touching" queries
                 if (drawable.skin instanceof TextBubbleSkin) continue;
-                if (drawable.skin && drawable._visible) {
+                if (drawable.skin && drawable.getVisible()) {
                     // If private skin access is disabled, do not allow projects to use touching blocks to guess the
                     // contents of a private skin.
                     if (!this.allowPrivateSkinAccess && drawable.skin.private) continue;
@@ -2024,7 +2042,7 @@ class RenderWebGL extends EventEmitter {
         drawable.updateEffect(effectName, value);
     }
 
-    updateDrawableBlendMode (drawableID, mode) {
+    setDrawableBlendMode (drawableID, mode) {
         const drawable = this._allDrawables[drawableID];
         // TODO: https://github.com/LLK/scratch-vm/issues/2288
         if (!drawable) return;
@@ -2324,6 +2342,7 @@ class RenderWebGL extends EventEmitter {
      * @param {int} opts.framebufferWidth The width of the framebuffer being drawn onto. Defaults to "native" width
      * @param {int} opts.framebufferHeight The height of the framebuffer being drawn onto. Defaults to "native" height
      * @param {boolean} opts.skipPrivateSkins Do not draw private skins.
+     * @param {string} opts.cameraFilter filter by camera state
      * @private
      */
     _drawThese (drawables, drawMode, projection, opts = {}) {
@@ -2368,9 +2387,11 @@ class RenderWebGL extends EventEmitter {
                 }
             }
 
+            if (opts.cameraFilter && drawable.cameraState !== opts.cameraFilter) continue;
+
             // Hidden drawables (e.g., by a "hide" block) are not drawn unless
             // the ignoreVisibility flag is used (e.g. for stamping or touchingColor).
-            if (!drawable.getVisible() && !opts.ignoreVisibility) continue;
+            if (!drawable.getVisible() && !opts.ignoreVisibility && !(opts.cameraFilter && drawable._visible)) continue;
 
             // drawableScale is the "framebuffer-pixel-space" scale of the drawable, as percentages of the drawable's
             // "native size" (so 100 = same as skin's "native size", 200 = twice "native size").
@@ -2408,6 +2429,7 @@ class RenderWebGL extends EventEmitter {
                 });
             }
 
+            drawable.uniformApplied = true;
             Object.assign(uniforms,
                 drawable.skin.getUniforms(drawableScale),
                 drawable.getUniforms());
@@ -2425,17 +2447,19 @@ class RenderWebGL extends EventEmitter {
                 );
             }
 
-            let blendInfo = [];
-            switch (drawable._blendMode) {
-                case Drawable.BlendMode.NORMAL: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_ALPHA]; break;
-                case Drawable.BlendMode.ADDITIVE: blendInfo = [gl.FUNC_ADD, gl.SRC_ALPHA, gl.ONE]; break;
-                case Drawable.BlendMode.MULTIPLICATIVE: blendInfo = [gl.FUNC_ADD, gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA]; break;
-                case Drawable.BlendMode.SUBTRACTIVE: blendInfo = [gl.FUNC_REVERSE_SUBTRACT, gl.ONE, gl.ONE]; break;
-                case Drawable.BlendMode.SCREEN: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_COLOR]; break;
-                case Drawable.BlendMode.DIFFERENCE: blendInfo = [gl.FUNC_ADD, gl.ONE_MINUS_DST_COLOR, gl.ONE_MINUS_SRC_COLOR, gl.ONE, gl.ONE]; break;
+            if (!drawable.blendMode || drawable.blendMode == "default") { // clippingblending ext support
+                let blendInfo = [];
+                switch (drawable._blendMode) {
+                    case Drawable.BlendMode.NORMAL: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_ALPHA]; break;
+                    case Drawable.BlendMode.ADDITIVE: blendInfo = [gl.FUNC_ADD, gl.SRC_ALPHA, gl.ONE]; break;
+                    case Drawable.BlendMode.MULTIPLICATIVE: blendInfo = [gl.FUNC_ADD, gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA]; break;
+                    case Drawable.BlendMode.SUBTRACTIVE: blendInfo = [gl.FUNC_REVERSE_SUBTRACT, gl.ONE, gl.ONE]; break;
+                    case Drawable.BlendMode.SCREEN: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_COLOR]; break;
+                    case Drawable.BlendMode.DIFFERENCE: blendInfo = [gl.FUNC_ADD, gl.ONE_MINUS_DST_COLOR, gl.ONE_MINUS_SRC_COLOR, gl.ONE, gl.ONE]; break;
+                }
+                gl.blendEquation(blendInfo[0]);
+                gl.blendFuncSeparate(blendInfo[1], blendInfo[2], blendInfo[3] ?? blendInfo[1], blendInfo[4] ?? blendInfo[2]);
             }
-            gl.blendEquation(blendInfo[0]);
-            gl.blendFuncSeparate(blendInfo[1], blendInfo[2], blendInfo[3] ?? blendInfo[1], blendInfo[4] ?? blendInfo[2]);
 
             twgl.setUniforms(currentShader, uniforms);
             twgl.drawBufferInfo(gl, this._bufferInfo, gl.TRIANGLES);
@@ -2630,6 +2654,17 @@ class RenderWebGL extends EventEmitter {
     requestSnapshot (callback) {
         this.dirty = true;
         this._snapshotCallbacks.push(callback);
+        this._snapshotCameraFilter.push(null);
+    }
+
+    /**
+     * @param {string} state camera state
+     * @param {snapshotCallback} callback Function called in the next frame with the snapshot data
+     */
+    requestCameraSnapshot (state, callback) {
+        this.dirty = true;
+        this._snapshotCallbacks.push(callback);
+        this._snapshotCameraFilter.push(state);
     }
 
     getBubbleDefaults () {
