@@ -496,30 +496,32 @@ class Drawable {
 
         const camPos = this._renderer.camera.getPosition(this.cameraState);
         const camSize = this._renderer.camera.getSize(this.cameraState);
-        const camRot = this._renderer.camera.getDirection(this.cameraState) - 90;
+        const camSizeX = camSize[0] / 100;
+        const camSizeY = camSize[1] / 100;
+        const camRot = 90 - this._renderer.camera.getDirection(this.cameraState);
         const camRotS = Math.sin(camRot / 180 * Math.PI);
         const camRotC = Math.cos(camRot / 180 * Math.PI);
 
-        const scale0 = this._skinScale[0] * camSize[0] / 100;
-        const scale1 = this._skinScale[1] * camSize[1] / 100;
+        const scale0 = this._skinScale[0];
+        const scale1 = this._skinScale[1];
         const rotation00 = this._rotationMatrix[0];
         const rotation01 = this._rotationMatrix[1];
         const rotation10 = this._rotationMatrix[4];
         const rotation11 = this._rotationMatrix[5];
-        const adjusted0 = this._rotationAdjusted[0] * camSize[0] / 100;
-        const adjusted1 = this._rotationAdjusted[1] * camSize[1] / 100;
-        const position0 = (this._position[0] - camPos[0]) * camSize[0] / 100;
-        const position1 = (this._position[1] - camPos[1]) * camSize[1] / 100;
+        const adjusted0 = this._rotationAdjusted[0] * camSizeX;
+        const adjusted1 = this._rotationAdjusted[1] * camSizeY;
+        const position0 = (this._position[0] - camPos[0]) * camSizeX;
+        const position1 = (this._position[1] - camPos[1]) * camSizeY;
 
         // Commented assignments show what the values are when the matrix was
         // instantiated. Those values will never change so they do not need to
         // be reassigned.
-        modelMatrix[0] = scale0 * rotation00 * camRotC - scale0 * rotation01 * camRotS;
-        modelMatrix[1] = scale0 * rotation00 * camRotS + scale0 * rotation01 * camRotC;
+        modelMatrix[0] = (rotation00 * camRotC - rotation01 * camRotS) * scale0 * camSizeX;
+        modelMatrix[1] = (rotation00 * camRotS + rotation01 * camRotC) * scale0 * camSizeY;
         // modelMatrix[2] = 0;
         // modelMatrix[3] = 0;
-        modelMatrix[4] = scale1 * rotation10 * camRotC - scale1 * rotation11 * camRotS;
-        modelMatrix[5] = scale1 * rotation10 * camRotS + scale1 * rotation11 * camRotC;
+        modelMatrix[4] = (rotation10 * camRotC - rotation11 * camRotS) * scale1 * camSizeX;
+        modelMatrix[5] = (rotation10 * camRotS + rotation11 * camRotC) * scale1 * camSizeY;
         // modelMatrix[6] = 0;
         // modelMatrix[7] = 0;
         // modelMatrix[8] = 0;
@@ -534,8 +536,8 @@ class Drawable {
         // do cam rotation seperately cause otherwise it would be a loong line
         const m30 = modelMatrix[12];
         const m31 = modelMatrix[13];
-        modelMatrix[12] = m30 * camRotC - m31 * camRotS;
-        modelMatrix[13] = m30 * camRotS + m31 * camRotC;
+        modelMatrix[12] = (m30 * camRotC - m31 * camRotS) * camSizeX;
+        modelMatrix[13] = (m30 * camRotS + m31 * camRotC) * camSizeY;
 
         this._transformDirty = false;
     }
