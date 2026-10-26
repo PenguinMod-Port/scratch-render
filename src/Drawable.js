@@ -510,8 +510,8 @@ class Drawable {
         const rotation11 = this._rotationMatrix[5];
         const adjusted0 = this._rotationAdjusted[0] * camSizeX;
         const adjusted1 = this._rotationAdjusted[1] * camSizeY;
-        const position0 = (this._position[0] - camPos[0]) * camSizeX;
-        const position1 = (this._position[1] - camPos[1]) * camSizeY;
+        const position0 = this._position[0] - camPos[0];
+        const position1 = this._position[1] - camPos[1];
 
         // Commented assignments show what the values are when the matrix was
         // instantiated. Those values will never change so they do not need to
