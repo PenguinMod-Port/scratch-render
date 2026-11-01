@@ -2685,6 +2685,7 @@ class RenderWebGL extends EventEmitter {
      * SEURITY CONSIDERATIONS: It is the caller's responsibility to ensure that the @font-face
      * statements do not contain malicious styles.
      * @param {Record<string, string>} customFonts Maps full font families (with fallbacks) to @font-face statements.
+     * @returns {Promise<unknown>} Resolves when the fonts are ready to use. Never rejects.
      */
     setCustomFonts (customFonts) {
         this.customFonts = customFonts;
@@ -2711,10 +2712,9 @@ class RenderWebGL extends EventEmitter {
             typeof document.fonts.load === 'function'
         ) {
             const families = Object.keys(customFonts);
-            for (const family of families) {
-                document.fonts.load(`12px ${family}`);
-            }
+            return Promise.all(families.map(family => document.fonts.load(`12px ${family}`).catch(() => {})));
         }
+        return Promise.resolve();
     }
 }
 
