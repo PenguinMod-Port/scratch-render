@@ -2447,7 +2447,10 @@ class RenderWebGL extends EventEmitter {
                 );
             }
 
-            if (!drawable.blendMode || drawable.blendMode == "default") { // clippingblending ext support
+            if (
+                (!drawable.blendMode || drawable.blendMode == "default" /* clipping & blending ext support */) ||
+                (!drawable.customDrawableName.endsWith("Particle Engine (SP)") /* particle engine ext support */)
+            ) {
                 let blendInfo = [];
                 switch (drawable._blendMode) {
                     case Drawable.BlendMode.NORMAL: blendInfo = [gl.FUNC_ADD, gl.ONE, gl.ONE_MINUS_SRC_ALPHA]; break;
